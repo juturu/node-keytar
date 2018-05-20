@@ -4,13 +4,10 @@
 namespace {
 
 NAN_METHOD(SetPassword) {
-  auto service = std::string(*v8::String::Utf8Value(info[0]));
-  auto account = std::string(*v8::String::Utf8Value(info[1]));
-  auto passwd = std::string(*v8::String::Utf8Value(info[2]));
   SetPasswordWorker* worker = new SetPasswordWorker(
-    service,
-    account,
-    passwd,
+    *v8::String::Utf8Value(info[0]),
+    *v8::String::Utf8Value(info[1]),
+    *v8::String::Utf8Value(info[2]),
     new Nan::Callback(info[3].As<v8::Function>()));
   Nan::AsyncQueueWorker(worker);
 }

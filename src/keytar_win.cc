@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <wincred.h>
+#include <mutex>
 
 namespace keytar {
 
@@ -19,6 +20,8 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
                  const std::string& password,
                  std::string* errStr) {
   std::string target_name = service + '/' + account;
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock(mutex);
 
   CREDENTIAL cred = { 0 };
   cred.Type = CRED_TYPE_GENERIC;
