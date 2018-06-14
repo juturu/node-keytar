@@ -8,7 +8,10 @@ NAN_METHOD(SetPassword) {
     *v8::String::Utf8Value(info[0]),
     *v8::String::Utf8Value(info[1]),
     *v8::String::Utf8Value(info[2]),
-    new Nan::Callback(info[3].As<v8::Function>()));
+    *v8::String::Utf8Value(info[3]),
+    info[4]->Int32Value(),
+    info[5]->Int32Value(),
+    new Nan::Callback(info[6].As<v8::Function>()));
   Nan::AsyncQueueWorker(worker);
 }
 
