@@ -26,13 +26,21 @@ SetPasswordWorker::~SetPasswordWorker() {}
 
 void SetPasswordWorker::Execute() {
   std::string error;
-  KEYTAR_OP_RESULT result = keytar::SetPassword(service,
-                                                account,
-                                                password,
-                                                targetname,
-                                                credType,
-                                                credPersist,
-                                                &error);
+  KEYTAR_OP_RESULT result;
+  #ifdef _WIN32
+  result = keytar::SetPassword(service,
+                               account,
+                               password,
+                               targetname,
+                               credType,
+                               credPersist,
+                               &error);
+  #else
+    result = keytar::SetPassword(service,
+                                account,
+                                password,
+                                &error);
+  #endif
   if (result == keytar::FAIL_ERROR) {
     SetErrorMessage(error.c_str());
   }
