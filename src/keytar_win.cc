@@ -71,20 +71,12 @@ KEYTAR_OP_RESULT SetPassword(const std::string& service,
     }
   }
   CREDENTIALW cred = { 0 };
-  // cred.Type = CRED_TYPE_GENERIC;
-  // cred.Type = CRED_TYPE_DOMAIN_PASSWORD;
   cred.Type = static_cast<DWORD>(credType);
-  // cred.TargetName = const_cast<char*>(target_name.c_str());
   cred.TargetName = utf8ToWideChar(target_name);
-  // cred.UserName = const_cast<char*>(account.c_str());
   cred.UserName = utf8ToWideChar(account);
-  // cred.CredentialBlobSize = password.size();
-  // cred.CredentialBlobSize = static_cast<DWORD>((password.size()) + 1) * sizeof(WCHAR);
-
   LPWSTR temp = utf8ToWideChar(password);
   cred.CredentialBlobSize = static_cast<DWORD>(wcslen(temp) * sizeof(WCHAR));
   cred.CredentialBlob = (LPBYTE)(temp);
-  // cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
   cred.Persist = static_cast<DWORD>(credPersist);
 
   bool result = ::CredWriteW(&cred, 0);
