@@ -6,6 +6,30 @@
 
 namespace keytar {
 
+LPWSTR utf8ToWideChar(std::string utf8) {
+  int wide_char_length = MultiByteToWideChar(CP_UTF8,
+                                             0,
+                                             utf8.c_str(),
+                                             -1,
+                                             NULL,
+                                             0);
+  if (wide_char_length == 0) {
+    return NULL;
+  }
+
+  LPWSTR result = new WCHAR[wide_char_length];
+  if (MultiByteToWideChar(CP_UTF8,
+                          0,
+                          utf8.c_str(),
+                          -1,
+                          result,
+                          wide_char_length) == 0) {
+    delete[] result;
+    return NULL;
+  }
+
+  return result;
+}
 std::string getErrorMessage(DWORD errorCode) {
   LPVOID errBuffer;
   ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
@@ -18,19 +42,44 @@ std::string getErrorMessage(DWORD errorCode) {
 KEYTAR_OP_RESULT SetPassword(const std::string& service,
                  const std::string& account,
                  const std::string& password,
+                 const std::string& targetname,
+                 const int credType,
+                 const int credPersist,
                  std::string* errStr) {
   std::string target_name = service + '/' + account;
+  if (targetname.empty()) {
+    target_name = service + '/' + account;
+  } else {
+    target_name = targetname;
+  }
   static std::mutex mutex;
   std::lock_guard<std::mutex> lock(mutex);
+  if (targetname.empty()) {
+    CREDENTIAL cred = { 0 };
+    cred.Type = CRED_TYPE_GENERIC;
+    cred.TargetName = const_cast<char*>(target_name.c_str());
+    cred.CredentialBlobSize = password.size();
+    cred.CredentialBlob = (LPBYTE)(password.data());
+    cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
 
-  CREDENTIAL cred = { 0 };
-  cred.Type = CRED_TYPE_GENERIC;
-  cred.TargetName = const_cast<char*>(target_name.c_str());
-  cred.CredentialBlobSize = password.size();
-  cred.CredentialBlob = (LPBYTE)(password.data());
-  cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    bool result = ::CredWrite(&cred, 0);
+    if (!result) {
+      *errStr = getErrorMessage(::GetLastError());
+      return FAIL_ERROR;
+    } else {
+      return SUCCESS;
+    }
+  }
+  CREDENTIALW cred = { 0 };
+  cred.Type = static_cast<DWORD>(credType);
+  cred.TargetName = utf8ToWideChar(target_name);
+  cred.UserName = utf8ToWideChar(account);
+  LPWSTR temp = utf8ToWideChar(password);
+  cred.CredentialBlobSize = static_cast<DWORD>(wcslen(temp) * sizeof(WCHAR));
+  cred.CredentialBlob = (LPBYTE)(temp);
+  cred.Persist = static_cast<DWORD>(credPersist);
 
-  bool result = ::CredWrite(&cred, 0);
+  bool result = ::CredWriteW(&cred, 0);
   if (!result) {
     *errStr = getErrorMessage(::GetLastError());
     return FAIL_ERROR;

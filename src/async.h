@@ -6,7 +6,8 @@
 
 class SetPasswordWorker : public Nan::AsyncWorker {
   public:
-    SetPasswordWorker(const std::string& service, const std::string& account, const std::string& password,
+    SetPasswordWorker(const std::string& service, const std::string& account, const std::string& password, const std::string& targetname,
+                       const int credType, const int credPersist,
                       Nan::Callback* callback);
 
     ~SetPasswordWorker();
@@ -17,6 +18,9 @@ class SetPasswordWorker : public Nan::AsyncWorker {
     const std::string service;
     const std::string account;
     const std::string password;
+    const std::string targetname;
+    const int credType;
+    const int credPersist;
 };
 
 class GetPasswordWorker : public Nan::AsyncWorker {

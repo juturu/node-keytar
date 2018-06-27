@@ -11,10 +11,20 @@ enum KEYTAR_OP_RESULT {
   FAIL_NONFATAL
 };
 
+#ifdef _WIN32
+KEYTAR_OP_RESULT SetPassword(const std::string& service,
+                             const std::string& account,
+                             const std::string& password,
+                             const std::string& targetname,
+                             const int credType,
+                             const int credPersist,
+                             std::string* error);
+#else
 KEYTAR_OP_RESULT SetPassword(const std::string& service,
                              const std::string& account,
                              const std::string& password,
                              std::string* error);
+#endif
 
 KEYTAR_OP_RESULT GetPassword(const std::string& service,
                              const std::string& account,

@@ -10,20 +10,37 @@ SetPasswordWorker::SetPasswordWorker(
   const std::string& service,
   const std::string& account,
   const std::string& password,
+  const std::string& targetname,
+  const int credType,
+  const int credPersist,
   Nan::Callback* callback
 ) : AsyncWorker(callback),
     service(service),
     account(account),
-    password(password) {}
+    password(password),
+    targetname(targetname), 
+    credType(credType),
+    credPersist(credPersist) {}
 
 SetPasswordWorker::~SetPasswordWorker() {}
 
 void SetPasswordWorker::Execute() {
   std::string error;
-  KEYTAR_OP_RESULT result = keytar::SetPassword(service,
-                                                account,
-                                                password,
-                                                &error);
+  KEYTAR_OP_RESULT result;
+  #ifdef _WIN32
+  result = keytar::SetPassword(service,
+                               account,
+                               password,
+                               targetname,
+                               credType,
+                               credPersist,
+                               &error);
+  #else
+    result = keytar::SetPassword(service,
+                                account,
+                                password,
+                                &error);
+  #endif
   if (result == keytar::FAIL_ERROR) {
     SetErrorMessage(error.c_str());
   }
