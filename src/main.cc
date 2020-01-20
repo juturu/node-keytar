@@ -38,13 +38,17 @@ NAN_METHOD(FindPassword) {
   Nan::AsyncQueueWorker(worker);
 }
 
-void Init(v8::Handle<v8::Object> exports) {
-  Nan::SetMethod(exports, "getPassword", GetPassword);
-  Nan::SetMethod(exports, "setPassword", SetPassword);
-  Nan::SetMethod(exports, "deletePassword", DeletePassword);
-  Nan::SetMethod(exports, "findPassword", FindPassword);
+NAN_MODULE_INIT(Init) {
+  Nan::SetMethod(target, "getPassword", GetPassword);
+  Nan::SetMethod(target, "setPassword", SetPassword);
+  Nan::SetMethod(target, "deletePassword", DeletePassword);
+  Nan::SetMethod(target, "findPassword", FindPassword);
 }
 
 }  // namespace
 
+#if NODE_MAJOR_VERSION >= 10
+NAN_MODULE_WORKER_ENABLED(keytar, Init)
+#else
 NODE_MODULE(keytar, Init)
+#endif
