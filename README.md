@@ -1,5 +1,3 @@
-_Note: this project is a fork from 'keytar4', which is a fork of 'keytar'._
-
 # keytar - Node module to manage system keychain
 
 [![Travis Build Status](https://travis-ci.org/atom/node-keytar.svg?branch=master)](https://travis-ci.org/atom/node-keytar)
