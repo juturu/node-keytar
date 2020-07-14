@@ -2,6 +2,9 @@
 #define SRC_KEYTAR_H_
 
 #include <string>
+#include <vector>
+
+#include "credentials.h"
 
 namespace keytar {
 
@@ -38,6 +41,10 @@ KEYTAR_OP_RESULT DeletePassword(const std::string& service,
 KEYTAR_OP_RESULT FindPassword(const std::string& service,
                               std::string* password,
                               std::string* error);
+
+KEYTAR_OP_RESULT FindCredentials(const std::string& service,
+                                 std::vector<Credentials>*,
+                                 std::string* error);
 
 }  // namespace keytar
 

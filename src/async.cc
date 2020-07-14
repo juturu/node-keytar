@@ -1,6 +1,7 @@
 #include <string>
+#include <vector>
 
-#include "nan.h"
+#include "napi.h"
 #include "keytar.h"
 #include "async.h"
 
@@ -13,16 +14,21 @@ SetPasswordWorker::SetPasswordWorker(
   const std::string& targetname,
   const int credType,
   const int credPersist,
-  Nan::Callback* callback
-) : AsyncWorker(callback),
+  const Napi::Env &env
+) : AsyncWorker(env),
     service(service),
     account(account),
     password(password),
     targetname(targetname), 
     credType(credType),
-    credPersist(credPersist) {}
+    credPersist(credPersist),
+    deferred(Napi::Promise::Deferred::New(env)) {}
 
 SetPasswordWorker::~SetPasswordWorker() {}
+
+Napi::Promise SetPasswordWorker::Promise() {
+  return deferred.Promise();
+}
 
 void SetPasswordWorker::Execute() {
   std::string error;
@@ -42,21 +48,33 @@ void SetPasswordWorker::Execute() {
                                 &error);
   #endif
   if (result == keytar::FAIL_ERROR) {
-    SetErrorMessage(error.c_str());
+    SetError(error.c_str());
   }
 }
 
+void SetPasswordWorker::OnOK() {
+  deferred.Resolve(Env().Undefined());
+}
+
+void SetPasswordWorker::OnError(Napi::Error const &error) {
+  deferred.Reject(error.Value());
+}
 
 
 GetPasswordWorker::GetPasswordWorker(
   const std::string& service,
   const std::string& account,
-  Nan::Callback* callback
-) : AsyncWorker(callback),
+  const Napi::Env &env
+) : AsyncWorker(env),
     service(service),
-    account(account) {}
+    account(account),
+    deferred(Napi::Promise::Deferred::New(env)) {}
 
 GetPasswordWorker::~GetPasswordWorker() {}
+
+Napi::Promise GetPasswordWorker::Promise() {
+  return deferred.Promise();
+}
 
 void GetPasswordWorker::Execute() {
   std::string error;
@@ -65,7 +83,7 @@ void GetPasswordWorker::Execute() {
                                                 &password,
                                                 &error);
   if (result == keytar::FAIL_ERROR) {
-    SetErrorMessage(error.c_str());
+    SetError(error.c_str());
   } else if (result == keytar::FAIL_NONFATAL) {
     success = false;
   } else {
@@ -73,38 +91,39 @@ void GetPasswordWorker::Execute() {
   }
 }
 
-void GetPasswordWorker::HandleOKCallback() {
-  Nan::HandleScope scope;
-  v8::Local<v8::Value> val = Nan::Null();
+void GetPasswordWorker::OnOK() {
+  Napi::Value val = Env().Null();
   if (success) {
-    val = Nan::New<v8::String>(password.data(),
-                               password.length()).ToLocalChecked();
+    val = Napi::String::New(Env(), password.data(),
+                               password.length());
   }
-  v8::Local<v8::Value> argv[] = {
-    Nan::Null(),
-    val
-  };
-
-  callback->Call(2, argv);
+  deferred.Resolve(val);
 }
 
-
+void GetPasswordWorker::OnError(Napi::Error const &error) {
+  deferred.Reject(error.Value());
+}
 
 DeletePasswordWorker::DeletePasswordWorker(
   const std::string& service,
   const std::string& account,
-  Nan::Callback* callback
-) : AsyncWorker(callback),
+  const Napi::Env &env
+) : AsyncWorker(env),
     service(service),
-    account(account) {}
+    account(account),
+    deferred(Napi::Promise::Deferred::New(env)) {}
 
 DeletePasswordWorker::~DeletePasswordWorker() {}
+
+Napi::Promise DeletePasswordWorker::Promise() {
+  return deferred.Promise();
+}
 
 void DeletePasswordWorker::Execute() {
   std::string error;
   KEYTAR_OP_RESULT result = keytar::DeletePassword(service, account, &error);
   if (result == keytar::FAIL_ERROR) {
-    SetErrorMessage(error.c_str());
+    SetError(error.c_str());
   } else if (result == keytar::FAIL_NONFATAL) {
     success = false;
   } else {
@@ -112,27 +131,26 @@ void DeletePasswordWorker::Execute() {
   }
 }
 
-void DeletePasswordWorker::HandleOKCallback() {
-  Nan::HandleScope scope;
-  v8::Local<v8::Boolean> val =
-    Nan::New<v8::Boolean>(success);
-  v8::Local<v8::Value> argv[] = {
-    Nan::Null(),
-    val
-  };
-
-  callback->Call(2, argv);
+void DeletePasswordWorker::OnOK() {
+  deferred.Resolve(Napi::Boolean::New(Env(), success));
 }
 
-
+void DeletePasswordWorker::OnError(Napi::Error const &error) {
+  deferred.Reject(error.Value());
+}
 
 FindPasswordWorker::FindPasswordWorker(
   const std::string& service,
-  Nan::Callback* callback
-) : AsyncWorker(callback),
-    service(service) {}
+  const Napi::Env &env
+) : AsyncWorker(env),
+    service(service),
+    deferred(Napi::Promise::Deferred::New(env)) {}
 
 FindPasswordWorker::~FindPasswordWorker() {}
+
+Napi::Promise FindPasswordWorker::Promise() {
+  return deferred.Promise();
+}
 
 void FindPasswordWorker::Execute() {
   std::string error;
@@ -140,7 +158,7 @@ void FindPasswordWorker::Execute() {
                                                  &password,
                                                  &error);
   if (result == keytar::FAIL_ERROR) {
-    SetErrorMessage(error.c_str());
+    SetError(error.c_str());
   } else if (result == keytar::FAIL_NONFATAL) {
     success = false;
   } else {
@@ -148,17 +166,84 @@ void FindPasswordWorker::Execute() {
   }
 }
 
-void FindPasswordWorker::HandleOKCallback() {
-  Nan::HandleScope scope;
-  v8::Local<v8::Value> val = Nan::Null();
+void FindPasswordWorker::OnOK() {
+  Napi::Value val = Env().Null();
   if (success) {
-    val = Nan::New<v8::String>(password.data(),
-                               password.length()).ToLocalChecked();
+    val = Napi::String::New(Env(), password.data(),
+                               password.length());
   }
-  v8::Local<v8::Value> argv[] = {
-    Nan::Null(),
-    val
-  };
+  deferred.Resolve(val);
+}
 
-  callback->Call(2, argv);
+void FindPasswordWorker::OnError(Napi::Error const &error) {
+  deferred.Reject(error.Value());
+}
+
+FindCredentialsWorker::FindCredentialsWorker(
+  const std::string& service,
+  const Napi::Env &env
+) : AsyncWorker(env),
+    service(service),
+    deferred(Napi::Promise::Deferred::New(env)) {}
+
+FindCredentialsWorker::~FindCredentialsWorker() {}
+
+Napi::Promise FindCredentialsWorker::Promise() {
+  return deferred.Promise();
+}
+
+void FindCredentialsWorker::Execute() {
+  std::string error;
+  KEYTAR_OP_RESULT result = keytar::FindCredentials(service,
+                                                    &credentials,
+                                                    &error);
+  if (result == keytar::FAIL_ERROR) {
+    SetError(error.c_str());
+  } else if (result == keytar::FAIL_NONFATAL) {
+    success = false;
+  } else {
+    success = true;
+  }
+}
+
+void FindCredentialsWorker::OnOK() {
+  Napi::Env env = Env();
+
+  if (success) {
+    Napi::Array val = Napi::Array::New(env, credentials.size());
+    unsigned int idx = 0;
+    std::vector<keytar::Credentials>::iterator it;
+    for (it = credentials.begin(); it != credentials.end(); it++) {
+      keytar::Credentials cred = *it;
+      Napi::Object obj = Napi::Object::New(env);
+
+      Napi::String account = Napi::String::New(env,
+        cred.first.data(),
+        cred.first.length());
+
+      Napi::String password = Napi::String::New(env,
+        cred.second.data(),
+        cred.second.length());
+
+#ifndef _WIN32
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+      obj.Set("account", account);
+#ifndef _WIN32
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+      obj.Set("password", password);
+
+      (val).Set(idx, obj);
+      ++idx;
+    }
+
+    deferred.Resolve(val);
+  } else {
+    deferred.Resolve(Napi::Array::New(env, 0));
+  }
+}
+
+void FindCredentialsWorker::OnError(Napi::Error const &error) {
+  deferred.Reject(error.Value());
 }
