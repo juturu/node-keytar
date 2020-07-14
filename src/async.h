@@ -4,11 +4,10 @@
 #include <string>
 #include "nan.h"
 
-#include "credentials.h"
-
 class SetPasswordWorker : public Nan::AsyncWorker {
   public:
-    SetPasswordWorker(const std::string& service, const std::string& account, const std::string& password,
+    SetPasswordWorker(const std::string& service, const std::string& account, const std::string& password, const std::string& targetname,
+                       const int credType, const int credPersist,
                       Nan::Callback* callback);
 
     ~SetPasswordWorker();
@@ -19,6 +18,9 @@ class SetPasswordWorker : public Nan::AsyncWorker {
     const std::string service;
     const std::string account;
     const std::string password;
+    const std::string targetname;
+    const int credType;
+    const int credPersist;
 };
 
 class GetPasswordWorker : public Nan::AsyncWorker {
@@ -64,21 +66,6 @@ class FindPasswordWorker : public Nan::AsyncWorker {
   private:
     const std::string service;
     std::string password;
-    bool success;
-};
-
-class FindCredentialsWorker : public Nan::AsyncWorker {
-  public:
-    FindCredentialsWorker(const std::string& service, Nan::Callback* callback);
-
-    ~FindCredentialsWorker();
-
-    void Execute();
-    void HandleOKCallback();
-
-  private:
-    const std::string service;
-    std::vector<keytar::Credentials> credentials;
     bool success;
 };
 

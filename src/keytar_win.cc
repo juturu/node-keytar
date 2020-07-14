@@ -1,11 +1,8 @@
 #include "keytar.h"
 
-#define UNICODE
-
 #include <windows.h>
 #include <wincred.h>
-
-#include "credentials.h"
+#include <mutex>
 
 namespace keytar {
 
@@ -33,82 +30,11 @@ LPWSTR utf8ToWideChar(std::string utf8) {
 
   return result;
 }
-
-std::string wideCharToAnsi(LPWSTR wide_char) {
-  if (wide_char == NULL) {
-    return std::string();
-  }
-
-  int ansi_length = WideCharToMultiByte(CP_ACP,
-                                        0,
-                                        wide_char,
-                                        -1,
-                                        NULL,
-                                        0,
-                                        NULL,
-                                        NULL);
-  if (ansi_length == 0) {
-    return std::string();
-  }
-
-  char* buffer = new char[ansi_length];
-  if (WideCharToMultiByte(CP_ACP,
-                          0,
-                          wide_char,
-                          -1,
-                          buffer,
-                          ansi_length,
-                          NULL,
-                          NULL) == 0) {
-    delete[] buffer;
-    return std::string();
-  }
-
-  std::string result = std::string(buffer);
-  delete[] buffer;
-  return result;
-}
-
-std::string wideCharToUtf8(LPWSTR wide_char) {
-  if (wide_char == NULL) {
-    return std::string();
-  }
-
-  int utf8_length = WideCharToMultiByte(CP_UTF8,
-                                        0,
-                                        wide_char,
-                                        -1,
-                                        NULL,
-                                        0,
-                                        NULL,
-                                        NULL);
-  if (utf8_length == 0) {
-    return std::string();
-  }
-
-  char* buffer = new char[utf8_length];
-  if (WideCharToMultiByte(CP_UTF8,
-                          0,
-                          wide_char,
-                          -1,
-                          buffer,
-                          utf8_length,
-                          NULL,
-                          NULL) == 0) {
-    delete[] buffer;
-    return std::string();
-  }
-
-  std::string result = std::string(buffer);
-  delete[] buffer;
-  return result;
-}
-
 std::string getErrorMessage(DWORD errorCode) {
-  LPWSTR errBuffer;
+  LPVOID errBuffer;
   ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-                  NULL, errorCode, 0, (LPWSTR) &errBuffer, 0, NULL);
-  std::string errMsg = wideCharToAnsi(errBuffer);
+                  NULL, errorCode, 0, (LPTSTR) &errBuffer, 0, NULL);
+  std::string errMsg = std::string(reinterpret_cast<char*>(errBuffer));
   LocalFree(errBuffer);
   return errMsg;
 }
@@ -116,27 +42,44 @@ std::string getErrorMessage(DWORD errorCode) {
 KEYTAR_OP_RESULT SetPassword(const std::string& service,
                  const std::string& account,
                  const std::string& password,
+                 const std::string& targetname,
+                 const int credType,
+                 const int credPersist,
                  std::string* errStr) {
-  LPWSTR target_name = utf8ToWideChar(service + '/' + account);
-  if (target_name == NULL) {
-    return FAIL_ERROR;
+  std::string target_name = service + '/' + account;
+  if (targetname.empty()) {
+    target_name = service + '/' + account;
+  } else {
+    target_name = targetname;
   }
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock(mutex);
+  if (targetname.empty()) {
+    CREDENTIAL cred = { 0 };
+    cred.Type = CRED_TYPE_GENERIC;
+    cred.TargetName = const_cast<char*>(target_name.c_str());
+    cred.CredentialBlobSize = password.size();
+    cred.CredentialBlob = (LPBYTE)(password.data());
+    cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
 
-  LPWSTR user_name = utf8ToWideChar(account);
-  if (target_name == NULL) {
-    return FAIL_ERROR;
+    bool result = ::CredWrite(&cred, 0);
+    if (!result) {
+      *errStr = getErrorMessage(::GetLastError());
+      return FAIL_ERROR;
+    } else {
+      return SUCCESS;
+    }
   }
+  CREDENTIALW cred = { 0 };
+  cred.Type = static_cast<DWORD>(credType);
+  cred.TargetName = utf8ToWideChar(target_name);
+  cred.UserName = utf8ToWideChar(account);
+  LPWSTR temp = utf8ToWideChar(password);
+  cred.CredentialBlobSize = static_cast<DWORD>(wcslen(temp) * sizeof(WCHAR));
+  cred.CredentialBlob = (LPBYTE)(temp);
+  cred.Persist = static_cast<DWORD>(credPersist);
 
-  CREDENTIAL cred = { 0 };
-  cred.Type = CRED_TYPE_GENERIC;
-  cred.TargetName = target_name;
-  cred.UserName = user_name;
-  cred.CredentialBlobSize = password.size();
-  cred.CredentialBlob = (LPBYTE)(password.data());
-  cred.Persist = CRED_PERSIST_LOCAL_MACHINE;
-
-  bool result = ::CredWrite(&cred, 0);
-  delete[] target_name;
+  bool result = ::CredWriteW(&cred, 0);
   if (!result) {
     *errStr = getErrorMessage(::GetLastError());
     return FAIL_ERROR;
@@ -149,14 +92,10 @@ KEYTAR_OP_RESULT GetPassword(const std::string& service,
                  const std::string& account,
                  std::string* password,
                  std::string* errStr) {
-  LPWSTR target_name = utf8ToWideChar(service + '/' + account);
-  if (target_name == NULL) {
-    return FAIL_ERROR;
-  }
+  std::string target_name = service + '/' + account;
 
   CREDENTIAL* cred;
-  bool result = ::CredRead(target_name, CRED_TYPE_GENERIC, 0, &cred);
-  delete[] target_name;
+  bool result = ::CredRead(target_name.c_str(), CRED_TYPE_GENERIC, 0, &cred);
   if (!result) {
     DWORD code = ::GetLastError();
     if (code == ERROR_NOT_FOUND) {
@@ -176,13 +115,9 @@ KEYTAR_OP_RESULT GetPassword(const std::string& service,
 KEYTAR_OP_RESULT DeletePassword(const std::string& service,
                     const std::string& account,
                     std::string* errStr) {
-  LPWSTR target_name = utf8ToWideChar(service + '/' + account);
-  if (target_name == NULL) {
-    return FAIL_ERROR;
-  }
+  std::string target_name = service + '/' + account;
 
-  bool result = ::CredDelete(target_name, CRED_TYPE_GENERIC, 0);
-  delete[] target_name;
+  bool result = ::CredDelete(target_name.c_str(), CRED_TYPE_GENERIC, 0);
   if (!result) {
     DWORD code = ::GetLastError();
     if (code == ERROR_NOT_FOUND) {
@@ -199,15 +134,11 @@ KEYTAR_OP_RESULT DeletePassword(const std::string& service,
 KEYTAR_OP_RESULT FindPassword(const std::string& service,
                   std::string* password,
                   std::string* errStr) {
-  LPWSTR filter = utf8ToWideChar(service + "*");
-  if (filter == NULL) {
-    return FAIL_ERROR;
-  }
+  std::string filter = service + "*";
 
   DWORD count;
   CREDENTIAL** creds;
-  bool result = ::CredEnumerate(filter, 0, &count, &creds);
-  delete[] filter;
+  bool result = ::CredEnumerate(filter.c_str(), 0, &count, &creds);
   if (!result) {
     DWORD code = ::GetLastError();
     if (code == ERROR_NOT_FOUND) {
@@ -223,46 +154,5 @@ KEYTAR_OP_RESULT FindPassword(const std::string& service,
   ::CredFree(creds);
   return SUCCESS;
 }
-
-KEYTAR_OP_RESULT FindCredentials(const std::string& service,
-                                 std::vector<Credentials>* credentials,
-                                 std::string* errStr) {
-  LPWSTR filter = utf8ToWideChar(service + "*");
-
-  DWORD count;
-  CREDENTIAL **creds;
-
-  bool result = ::CredEnumerate(filter, 0, &count, &creds);
-  if (!result) {
-    DWORD code = ::GetLastError();
-    if (code == ERROR_NOT_FOUND) {
-      return FAIL_NONFATAL;
-    } else {
-      *errStr = getErrorMessage(code);
-      return FAIL_ERROR;
-    }
-  }
-
-  for (unsigned int i = 0; i < count; ++i) {
-    CREDENTIAL* cred = creds[i];
-
-    if (cred->UserName == NULL || cred->CredentialBlobSize == NULL) {
-      continue;
-    }
-
-    std::string login = wideCharToUtf8(cred->UserName);
-    std::string password(
-      reinterpret_cast<char*>(
-        cred->CredentialBlob),
-        cred->CredentialBlobSize);
-
-    credentials->push_back(Credentials(login, password));
-  }
-
-  CredFree(creds);
-
-  return SUCCESS;
-}
-
 
 }  // namespace keytar

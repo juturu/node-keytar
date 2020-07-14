@@ -4,6 +4,3 @@
 *~
 .node-version
 .npmignore
-.tags
-.travis.yml
-appveyor.yml

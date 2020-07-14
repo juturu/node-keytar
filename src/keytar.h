@@ -2,9 +2,6 @@
 #define SRC_KEYTAR_H_
 
 #include <string>
-#include <vector>
-
-#include "credentials.h"
 
 namespace keytar {
 
@@ -14,10 +11,20 @@ enum KEYTAR_OP_RESULT {
   FAIL_NONFATAL
 };
 
+#ifdef _WIN32
+KEYTAR_OP_RESULT SetPassword(const std::string& service,
+                             const std::string& account,
+                             const std::string& password,
+                             const std::string& targetname,
+                             const int credType,
+                             const int credPersist,
+                             std::string* error);
+#else
 KEYTAR_OP_RESULT SetPassword(const std::string& service,
                              const std::string& account,
                              const std::string& password,
                              std::string* error);
+#endif
 
 KEYTAR_OP_RESULT GetPassword(const std::string& service,
                              const std::string& account,
@@ -31,10 +38,6 @@ KEYTAR_OP_RESULT DeletePassword(const std::string& service,
 KEYTAR_OP_RESULT FindPassword(const std::string& service,
                               std::string* password,
                               std::string* error);
-
-KEYTAR_OP_RESULT FindCredentials(const std::string& service,
-                                 std::vector<Credentials>*,
-                                 std::string* error);
 
 }  // namespace keytar
 
